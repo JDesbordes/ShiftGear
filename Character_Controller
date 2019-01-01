@@ -1,0 +1,1090 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine.Networking;
+using System;
+using UnityEngine;
+using XInputDotNetPure;
+using UnityEngine.SceneManagement;
+
+public class OtherController : NetworkBehaviour {
+	/*Ship handling parameters*/
+	public float hover_fwd_accel,rocket_fwd_accel;
+	[Tooltip("Maximum vehicle forward velocity in m/s")]
+	public float hover_fwd_max_speed,rocket_fwd_max_speed;
+	public float hover_bwd_accel,rocket_bwd_accel;
+	[Tooltip("Maximum vehicle Backward velocity in m/s")]
+	public float hover_bwd_max_speed,rocket_bwd_max_speed;
+	[Tooltip("Default slow affecting the vehicle when speed is untouched")]
+	public float auto_brake_speed;
+	public float hover_brake_speed,rocket_brake_speed;
+	public float hover_turn_speed,rocket_turn_speed;
+
+	public float hover_fall_angle,hover_fall_up_angle,hover_fall_down_angle;
+
+
+	public Camera fps,tps;
+
+	/*Auto adjust to track surface parameters*/
+	public float hover_height;     //Distance to keep from the ground
+
+	public GameObject visuals,glove;
+
+	//GameObject[] m_Animators;
+
+	private float height_smooth;   //How fast the vehicle will readjust to "hover_height"
+	private float pitch_smooth;    //How fast the vehicle will adjust its rotation to match track normal
+
+	//
+	private Vector3 prev_up;
+	public float yaw;
+	private float maxAngleChange= 55;
+	private float smooth_y;
+
+	//Character's rigidbody
+	private Rigidbody m_rb;
+
+	//Speed and acceleration variables
+	public float current_speed;
+	public float next_speed;
+	private Vector3 lastPos;
+	float smooth_accel;
+
+	//Rotation speed
+	float smooth_angle;
+	float smooth_angle2;
+	float hover_soap=0.2f;
+	float rocket_soap=0.05f;
+
+	//Current form true=hoverboard
+	public bool form=true;
+
+	bool right;
+
+	float rotation_help=0.013f;
+
+	//ArthurVar
+	public List<Transform> action;
+
+	public bool flying;
+
+	//camera tilt
+	float hover_tilt=60;
+	float rocket_tilt=120;
+
+	float turnAngle;
+
+	//Collison between players
+	public Vector3 targetRelativePos;
+	public float bumpTimer;
+	public float bumpDuration;
+
+	float lastValue = Mathf.Infinity;
+	int myCurrentValue=0;
+
+	public int myAction=-1;
+
+	public string playerName;
+	public Vector3 myInteractionPosition = Vector3.zero;
+	public float startTime;
+	public bool Boost = false;
+	public float BoostDecrease = 2;
+
+	// BezierFonctionAdd
+	public List<Vector3> scriptingMovement;
+	float saveTime=0;
+	float saveTime2=0;
+	float timeDuration =1;
+	float timeDuration2 =1;
+	float InitialDistancePos; 
+	float lerpAmount;
+	float lerpAmount2;
+	int i=0;
+	Vector3 RelativePosLook;
+	bool startLook = false;
+	bool initialisation = false;
+	public bool goLook;
+	public float upPoint;
+	public float endSpeedBezier;
+	public float SpeedBezier;
+	public bool tow = false;
+
+	//LeonardSound
+	public AudioSource AudioSourceMusic;
+	public AudioSource AudioSourceSpeed;
+	public AudioSource AudioSourceSound;
+	public AudioClip Transformation;  
+	public AudioClip Acceleration0toMax;  
+	public AudioClip AccelerationXtoMax; 
+	public AudioClip MaxSpeedSound1; 
+	public AudioClip GrabSound; 
+	public AudioClip VoiceImpact1;
+
+	public AudioSource hoverSource, rocketSource;
+	public AudioListener ManualVolume; 
+
+	//JeromeShit
+	float extraFlightAngle;
+	bool glide;
+	float rotationforce;
+	float animRotation;
+	float animAcceleration;
+	Vector3 prev_forward;
+
+	//add 30052018
+	public bool changeMe;
+	public Transform visualTowPoint;
+	public GameObject LBCanvas;
+	bool startDone = false;
+	float timerStartRace;
+	public float timeGo = 4;
+	bool firstPassage = false;
+	int startNumber;
+	public GameObject[] HUDs;
+
+	public float turnRightLeft;
+	List<GameObject> myLB = new List<GameObject>();
+	bool notHere = true;
+	public GameObject HUDActionOn;
+	public GameObject HUDActionOff;
+	public GameObject SparkFx,ImpactFx;
+	public GameObject[] Wings,Head;
+	public bool HUDgreen;
+	public bool HUDred = false;
+	public Material fresnel,boostShader,invisible,nonInvisible;
+	public GameObject Cockpit,m_projector;
+	float animTimer=0;
+
+	public Color Color1, Color2;
+
+	public Renderer _head;
+	private Material[] _materials;
+	public Renderer[] _renderer;
+	private MaterialPropertyBlock _propBlock;
+	private float flyingTimer;
+
+	Vector3 fpsLocalPos,fpsPreviousPos;
+	bool Headbob=false;
+	float HeadbobTimer;
+
+	public Renderer arms;
+
+	public bool flyingAnim,grab,formAnim,landing;
+
+	public int hitAnim;
+
+	public float rotationAnim, speedAnim, accelerationAnim;
+
+	public float priority;
+
+	//add 07/06/2018
+	public Transform myPush;
+
+	public float goodStart;
+	public Material MaterialGo;
+	bool boolGo = false;
+
+	public Texture[] SkinShirt;
+	public Texture[] SkinHair;
+	public MaterialPropertyBlock materialProperty;
+	public Renderer[] rendererHaid;
+	public Renderer[] rendererShirt;
+
+	public float vibrationG,vibrationD;
+	public int myNumberPlayer;
+
+	public float volume;
+	public AudioListener audio2;
+
+	bool FadeInOut=false;
+
+	void Start(){
+
+
+
+
+		AudioListener.volume = volume; 
+		CmdDontKill(this.gameObject);
+		QualitySettings.vSyncCount = 0;
+		//fps lag test
+
+		Application.targetFrameRate = 500;
+		tps.enabled = true;
+		m_rb = GetComponent<Rigidbody> ();
+		lastPos = transform.position;
+		CmdGiveName (this.gameObject);
+
+		Renderer[] _renderer2 = Cockpit.GetComponentsInChildren<Renderer> ();
+
+		foreach (Renderer r in _renderer2) {
+			r.material.SetFloat("_MyZtestVariable", 8);
+		}
+		foreach (GameObject g in HUDs) {
+			g.SetActive (true);
+		}
+
+		formAnim = true;
+		_materials = _head.materials;
+
+		fpsLocalPos = fps.transform.localPosition;
+
+		m_projector.SetActive (true);
+	}
+
+	void Update ()
+	{
+		
+		if (Input.GetButtonDown ("Credit"))
+		{
+			Debug.Log ("Credit");
+			SceneManager.LoadScene ("Credit");
+
+		}
+
+		if (HUDActionOff.activeSelf != HUDred) {
+			if (HUDActionOff.activeSelf == true) {
+				HUDActionOn.SetActive (true);
+				HUDActionOff.SetActive (false);
+			} else {
+				HUDActionOn.SetActive (false);
+				HUDActionOff.SetActive (true);
+			}
+		}
+
+		if (startNumber >= 1 && startDone == false) {
+
+			timerStartRace = Time.time;
+			startDone = true;
+			transform.GetComponentInChildren<specialAction> ().cooldownGrabPlayer = Network.time + 8;
+		} else if (Time.time <= timerStartRace + timeGo && startDone == true) {
+			if (Time.time <= timerStartRace + timeGo / 2) {
+
+				MaterialGo.SetFloat ("_node_7280", 0);
+			} else if (Time.time <= timerStartRace + timeGo * 3 / 4) {
+
+				MaterialGo.SetFloat ("_node_7280", 1);
+			} else if (Time.time <= timerStartRace + timeGo) {
+
+				MaterialGo.SetFloat ("_node_7280", 2);
+				if ((Input.GetAxis ("LB") != 0 || Input.GetKeyDown (KeyCode.F)) && goodStart == 0) {
+					goodStart = 40 * (timerStartRace + timeGo - Time.time);
+				}
+			}
+		}
+
+		if (isLocalPlayer && startDone == true && Time.time>=timerStartRace+timeGo){
+			
+
+			if (hoverSource.volume != (FadeInOut?0:1) || rocketSource.volume != (FadeInOut?1:0)) {
+				hoverSource.volume = Mathf.Lerp (hoverSource.volume, FadeInOut?0:1, Time.deltaTime);
+				rocketSource.volume = Mathf.Lerp (rocketSource.volume, FadeInOut?1:0, Time.deltaTime);
+				if (Mathf.Abs (hoverSource.volume - (FadeInOut?0:1)) < 0.1f) {
+					hoverSource.volume = FadeInOut?0:1;
+				}
+				if (Mathf.Abs (rocketSource.volume - (FadeInOut?1:0)) < 0.1f) {
+					rocketSource.volume = FadeInOut?1:0;
+				}
+			}
+
+			if (Headbob == true) {
+				fps.transform.position = Vector3.Lerp (fps.transform.position, fps.transform.position + transform.forward, Time.deltaTime/0.4f);
+				if (Time.time - HeadbobTimer > 0.1f) {
+					Headbob = false;
+					HeadbobTimer = Time.time;
+					fpsPreviousPos = fps.transform.localPosition;
+				}
+			} else if (Time.time - HeadbobTimer <= 1) {
+				fps.transform.localPosition = Vector3.Lerp (fpsPreviousPos, fpsLocalPos, Time.time-HeadbobTimer);
+			}
+
+			float offset=form?hover_fwd_max_speed:rocket_fwd_max_speed;
+
+			//CHANGER COULEUR-------------------------------------------------------------------------------------------------------------
+			_propBlock= new MaterialPropertyBlock ();
+
+			foreach (Renderer r in _renderer) {
+				r.GetPropertyBlock (_propBlock);
+				_propBlock.SetColor("_Color", Color.Lerp(Color1,Color2,(flying?next_speed:current_speed)-offset+1));
+				r.SetPropertyBlock (_propBlock);
+				offset -= (form?hover_fwd_max_speed:rocket_fwd_max_speed)/8;
+			}
+			if(Time.time<=timerStartRace+timeGo+1 && (Input.GetAxis ("LB") != 0 || Input.GetKeyDown (KeyCode.F)) && goodStart == 0){
+				goodStart = 40 * (timerStartRace + timeGo + 1 - Time.time);
+			} 
+
+			if (boolGo == false) {
+				MaterialGo.SetFloat ("_node_7280", 3);
+				boolGo = true;
+			}
+			if (firstPassage == false && Time.time <= timerStartRace + timeGo + 1) {
+				firstPassage = true;
+			}
+			//Debug.Log (mySpecialAction.cooldownGrabPlayer + " " + Time.time);
+
+			if ((Input.GetButtonDown ("ChangeForm")||changeMe ==true)&&Time.time-animTimer>1) {
+				//LeonardSound
+				AudioSourceSound.PlayOneShot (Transformation, 1.5F);
+				//LeonardSound 
+				animTimer = Time.time;
+				smooth_accel = 0;
+				smooth_angle = 0;
+				form = !form;
+				CmdAnimBool ("formAnim", form);
+
+				if (form) {
+					FadeInOut = false;
+					vibrationG = 0.2f;
+					vibrationD = 0.2f;
+					StartCoroutine ("Vibration", 0.5f);
+					fps.enabled = false;
+					tps.enabled = true;
+					tps.GetComponent<OtherCam>().switchform=false;
+					StartCoroutine (SwitchVisibility(true));
+
+				} else {
+					FadeInOut = true;
+					tps.GetComponent<OtherCam>().switchform=true;
+					StartCoroutine (SwitchVisibility(false));
+
+				}
+				changeMe = false;
+			}
+			if (scriptingMovement.Count != 0) {
+				BezierScriptMovement ();
+			}else{
+
+				if (action.Count != 0 && form) {
+
+					foreach (Transform t in action) {
+						float ValueTest = Mathf.Abs (Vector3.Distance (this.transform.position, t.position));
+						if ((ValueTest <= 15 || tow == true) && ValueTest <= lastValue && t.GetComponent<specialAction> ().cooldownGrabPlayer <= Network.time) {
+							lastValue = ValueTest;
+							myAction = myCurrentValue;
+							myInteractionPosition = this.transform.position;
+						}
+						myCurrentValue += 1;
+					}
+
+					if (myAction != -1) {
+						HighlightObject ();
+						if (action [myAction].GetComponent<specialAction> ().Door == true) {
+							action [myAction].GetComponent<specialAction> ().startTime = Time.time;
+						}
+					} else if (myLB != null){
+
+						foreach (GameObject g in myLB) {
+							/*if (g.GetComponentInParent<Renderer> () != null) {
+								if (g.GetComponentInParent<specialAction> ().Tow == true) {
+									Renderer _renderer2 = g.GetComponentInParent<specialAction> ().VisualTowPoint.GetComponent<Renderer> ();
+									int i = 0;
+									Material[] current = _renderer2.materials;
+									Material[] targetMaterials = new Material [current.Length - 1];
+									foreach (Material m in targetMaterials) {
+										targetMaterials [i] = current [i];
+										i++;
+									}
+									_renderer2.materials = targetMaterials;
+								} else {
+									Renderer _renderer2 = g.GetComponentInParent<specialAction> ().GetComponent<Renderer> ();
+									int i = 0;
+									Material[] current = _renderer2.materials;
+									Material[] targetMaterials = new Material [current.Length - 1];
+									foreach (Material m in targetMaterials) {
+										targetMaterials [i] = current [i];
+										i++;
+									}
+									_renderer2.materials = targetMaterials;
+								}
+							}*/
+							Destroy (g);
+						}
+						myLB = new List<GameObject>() ;
+						myAction = -1;
+					}
+
+					myCurrentValue = 0;
+					lastValue = Mathf.Infinity;
+				} else if (myLB != null){
+					foreach (GameObject g in myLB) {
+						/*if (g.GetComponentInParent<Renderer> () != null) {
+							if (g.GetComponentInParent<specialAction> ().Tow == true) {
+								Renderer _renderer2 = g.GetComponentInParent<specialAction> ().VisualTowPoint.GetComponent<Renderer> ();
+							int i = 0;
+							Material[] current = _renderer2.materials;
+							Material[] targetMaterials = new Material [current.Length - 1];
+							foreach (Material m in targetMaterials) {
+								targetMaterials [i] = current [i];
+								i++;
+							}
+							_renderer2.materials = targetMaterials;
+							} else {
+								Renderer _renderer2 = g.GetComponentInParent<specialAction> ().GetComponent<Renderer> ();
+							int i = 0;
+							Material[] current = _renderer2.materials;
+							Material[] targetMaterials = new Material [current.Length - 1];
+							foreach (Material m in targetMaterials) {
+								targetMaterials [i] = current [i];
+								i++;
+							}
+							_renderer2.materials = targetMaterials;
+							}
+						}*/
+						Destroy (g);
+					}
+					myLB = new List<GameObject>() ;
+				}
+
+				if (myAction != -1 && action.Count != 0 && (Input.GetAxis ("LB") != 0 )) {
+					glove.GetComponent<Glove> ().SetTarget (action [myAction].gameObject);
+					//LeonardSound
+					AudioSourceSound.PlayOneShot (GrabSound);
+					//LeonardSoundEnd
+					action [myAction].GetComponent<specialAction> ().DoMyAction (this.transform, right);
+					CmdAnimBool("grab", true);
+					CmdPriority(1);
+				}
+				//LeonardSound 
+				if (!AudioSourceSpeed.isPlaying && Input.GetAxis ("Forward") > 0){
+					if (current_speed <= 1 ) 
+					{
+
+						AudioSourceSpeed.PlayOneShot (Acceleration0toMax, 0.2F);
+					}
+					if (current_speed >= hover_fwd_max_speed-5 ) 
+					{
+						AudioSourceSpeed.PlayOneShot (MaxSpeedSound1, 0.2F);
+					}
+					if (current_speed > 1 && current_speed < hover_fwd_max_speed-5) 
+					{
+						AudioSourceSpeed.PlayOneShot (AccelerationXtoMax, 0.2F); 
+					}
+
+					//LeonardSoundEnd
+				}	
+				/*Here we get user input to calculate the speed the ship will get*/
+				if (Input.GetAxis ("Forward") > 0) {
+					/*Increase our current speed only if it is not greater than fwd_max_speed*/
+					if (form) {
+						if (current_speed >= hover_fwd_max_speed && Boost == true) {
+							current_speed -= auto_brake_speed * Time.deltaTime*BoostDecrease;
+						}
+						else if (current_speed >= hover_fwd_max_speed) {
+							current_speed -= auto_brake_speed * Time.deltaTime;
+						} else {
+							current_speed += hover_fwd_accel * Time.deltaTime;
+							Boost = false;
+						}
+						//current_speed += ((current_speed >= hover_fwd_max_speed) ? -auto_brake_speed : hover_fwd_accel) * Time.deltaTime;
+					} else {
+						if (current_speed >= rocket_fwd_max_speed && Boost == true) {
+							current_speed -= auto_brake_speed * Time.deltaTime*BoostDecrease;
+						}
+						else if (current_speed >= rocket_fwd_max_speed) {
+							current_speed -= auto_brake_speed * Time.deltaTime;
+						} else {
+							current_speed += rocket_fwd_accel * Time.deltaTime;
+							Boost = false;
+						}
+						//current_speed += ((current_speed >= rocket_fwd_max_speed) ? -auto_brake_speed : rocket_fwd_accel) * Time.deltaTime;
+					}
+				} else if (Input.GetAxis ("Forward") < 0&&current_speed > -hover_bwd_max_speed) {
+					/*Decrease our current speed only if it is not smaller than bwd_max_speed*/
+					if (form)
+						current_speed -= ((current_speed >0) ? hover_brake_speed : hover_bwd_accel) * Time.deltaTime;
+					else
+						current_speed -= ((current_speed >0) ? rocket_brake_speed : rocket_bwd_accel) * Time.deltaTime;
+				} else {
+					if (form && current_speed > hover_fwd_max_speed) {
+						current_speed -= auto_brake_speed * Time.deltaTime * BoostDecrease;
+					} else if (!form && current_speed > rocket_fwd_max_speed) {
+						current_speed -= auto_brake_speed * Time.deltaTime * BoostDecrease;
+					} else if (current_speed > 0.1f) {
+						/*The ship will slow down by itself if we dont accelerate*/
+						Boost = false;
+						current_speed -= auto_brake_speed * Time.deltaTime;
+					} else if (current_speed < -0.1f) {
+						Boost = false;
+						current_speed += auto_brake_speed * Time.deltaTime;
+					} else {
+						current_speed = 0;
+					}
+				}
+
+				float v = Input.GetAxis ("Vertical");
+
+				RaycastHit hit;
+				RaycastHit fronthit;
+				RaycastHit backhit;
+				RaycastHit lefthit;
+				RaycastHit righthit;
+
+
+				bool front = Physics.Raycast (transform.position + transform.forward / 2, -prev_up, out fronthit, 3, LayerMask.GetMask ("Path", form ? "GravityEnhancer" : "1"));
+				bool back = Physics.Raycast (transform.position - transform.forward / 2, -prev_up, out backhit, 3, LayerMask.GetMask ("Path", form ? "GravityEnhancer" : "1"));
+
+				if (Physics.Raycast (transform.position, -prev_up, out hit, 3, LayerMask.GetMask ("Path", form ? "GravityEnhancer" : "1")) && (front || back)) {
+					if (flying == true) {
+						current_speed = next_speed;
+						flying = false;
+
+						CmdAnimBool ("flyingAnim", false);
+						if (Time.time - flyingTimer > 0.5f) {
+							CmdAnimBool ("landing", true);
+							Headbob = true;
+							HeadbobTimer = Time.time;
+						}
+						Instantiate (ImpactFx, hit.point + transform.up / 2, Quaternion.identity);
+					} else if(landing==true){
+						CmdAnimBool ("landing", false);
+					}
+
+					height_smooth = 5 / hit.distance;
+					Vector3 normals = hit.normal;
+					if (Physics.Raycast (transform.position + transform.right * 0.5f, -prev_up, out righthit, 3, LayerMask.GetMask ("Path", form ? "GravityEnhancer" : "1"))) {
+						normals += righthit.normal;
+					}
+					if (Physics.Raycast (transform.position + transform.right * 0.5f, -prev_up, out lefthit, 3, LayerMask.GetMask ("Path", form ? "GravityEnhancer" : "1"))) {
+						normals += lefthit.normal;
+					}
+					if (front) {
+						normals += fronthit.normal * current_speed / 5;
+					}
+
+					smooth_angle = 0;
+					if (smooth_accel > 0) {
+						smooth_accel = 0;
+					} else {
+						smooth_accel -= Time.deltaTime;
+					}
+
+					pitch_smooth = 3;
+
+					//Add in later with better labeling of path and gravity enhancer
+					if (hit.collider.gameObject.layer ==8) {
+						pitch_smooth /= 2.5f;
+					}
+
+					/*Here are the meat and potatoes: first we calculate the new up vector for the ship using lerp so that it is smoothed*/
+					Vector3 desired_up = Vector3.Lerp (prev_up, normals, Time.deltaTime * pitch_smooth / (hit.distance+0.25f));
+					/*Then we get the angle that we have to rotate in quaternion format*/
+					Quaternion tilt = Quaternion.FromToRotation (transform.up, desired_up);
+					/*Now we apply it to the ship with the quaternion product property*/
+					transform.rotation = tilt * transform.rotation;
+
+					/*Smoothly adjust our height*/
+					smooth_y = Mathf.Lerp (hit.distance, hover_height, Time.deltaTime * height_smooth);
+					transform.localPosition = hit.point + prev_up * smooth_y;
+
+					//forward velocity
+
+					m_rb.velocity = (Mathf.Abs (current_speed) < 0.1f ? 0 : Mathf.Lerp (m_rb.velocity.magnitude, current_speed, -smooth_accel / 3)) * transform.forward;
+
+					animAcceleration = Mathf.Lerp (animAcceleration, Input.GetAxis ("Forward"), Time.deltaTime);
+
+					CmdAnimFloat ("speedAnim", current_speed);
+					CmdAnimFloat ("accelerationAnim", animAcceleration);
+
+				} else {
+					flightManager (v);
+				}
+			}
+		}
+	}
+
+	private IEnumerator SwitchVisibility(bool b){
+		if (b) {
+			
+			CmdCockpit (this.gameObject, false);
+			_materials [0] = nonInvisible;
+			_head.materials = _materials;
+			foreach (GameObject data in Head) {
+				data.SetActive (true);
+			}
+		} else {
+			yield return new WaitForSeconds(0.9f);
+			vibrationG = 0.7f;
+			vibrationD = 0.7f;
+			StartCoroutine ("Vibration", 0.2f);
+			foreach (brainDontWork data in GetComponentsInChildren<brainDontWork>()) {
+				data.target = 0;
+			}
+			CmdCockpit (this.gameObject, true);
+			_materials [0] = invisible;
+			_head.materials = _materials;
+			visuals.transform.GetChild (1).transform.position = visuals.transform.position+visuals.transform.GetChild (1).transform.up*-0.4f;
+			foreach (GameObject data in Head) {
+				data.SetActive (false);
+			}
+
+		}
+	}
+	private IEnumerator Vibration(float Time){
+		if (isLocalPlayer) {
+			if (true) {
+				GamePad.SetVibration (0, vibrationG, vibrationD);
+				yield return new WaitForSeconds (Time);
+				GamePad.SetVibration (0, 0, 0);
+			}
+		}
+	}
+
+	void Vibration2(float timer){
+		StartCoroutine (Vibration(timer));
+	}
+
+
+			
+
+	void FixedUpdate(){
+		if (isLocalPlayer) {
+			turnManager ();
+		}
+	}
+
+	void flightManager(float v){
+		if (flying == false) {
+			flyingTimer = Time.time;
+			flying = true;
+			CmdAnimBool ("flyingAnim", true);
+			smooth_angle2 = v * 1;
+			next_speed = current_speed;
+			extraFlightAngle = current_speed/hover_fwd_max_speed*0.55f;
+		}
+		if (form) {
+
+			if (smooth_accel < 0) {
+				smooth_accel = 0;
+			} else {
+				smooth_accel += Time.deltaTime / 2;
+			}
+			smooth_angle += Time.deltaTime / 10;
+
+			//hover_fall_up_angle + extraFlightAngle = 0.45 Maximum up Angle
+
+				if (extraFlightAngle > 0.5f) {
+				glide = true;
+			} else if (extraFlightAngle < 0.1f) {
+				glide = false;
+			}
+
+			if (v > 0.1f) {
+				smooth_angle2 = Mathf.Lerp (smooth_angle2, hover_fall_down_angle, Time.deltaTime / (0.8f-v));
+			} else if (v < -0.1f) {
+				smooth_angle2 = Mathf.Lerp (smooth_angle2, hover_fall_up_angle+(glide?extraFlightAngle:0), Time.deltaTime / (0.8f+v));
+			}else{
+				smooth_angle2 = Mathf.Lerp(smooth_angle2,hover_fall_angle,Time.deltaTime/0.4f);
+			}
+
+			if (smooth_angle2 > hover_fall_up_angle&&glide == true) {
+				extraFlightAngle = Mathf.Lerp (extraFlightAngle, 0, (Time.deltaTime/(1-smooth_angle2)));
+			} else {
+				extraFlightAngle = Mathf.Lerp(extraFlightAngle,0.75f,(Time.deltaTime/(0.8f+smooth_angle2)));
+			}
+
+			next_speed = Mathf.Lerp (next_speed, (0.7f-smooth_angle2)*35, Time.deltaTime);
+
+
+			float angle = Vector3.Angle (Vector3.ProjectOnPlane(transform.up,Vector3.ProjectOnPlane(transform.forward,Vector3.up)), Vector3.up);
+			angle = Mathf.Clamp(Mathf.Abs(angle-180)/180,0.2f,1);
+
+			Vector3 desired_up;
+			desired_up = Vector3.Lerp (transform.up, Vector3.Normalize (Vector3.ProjectOnPlane (transform.forward, Vector3.up)) * (Mathf.Sqrt (3) / 2) + Vector3.up * 1.5f + transform.TransformDirection (0, 0, -smooth_angle2), Time.deltaTime/angle);
+
+			Vector3 desired_forward = transform.forward;
+
+			//reduce forward.y
+			desired_forward.y= Mathf.Lerp(transform.forward.y,smooth_angle2,Time.deltaTime/0.2f);
+			//desired_forward=new Vector3(transform.forward.x, Mathf.Lerp(transform.forward.y,-0.50f-(smooth_angle2/0.45f)*0.24f,Time.deltaTime/0.2f),transform.forward.z);
+
+			Quaternion rot = Quaternion.LookRotation (desired_forward,desired_up);
+			transform.rotation = rot;
+
+			//change
+
+			m_rb.velocity = transform.forward * next_speed ;
+
+		} else {
+			if (smooth_accel < 0) {
+				smooth_accel = 0;
+			} else {
+				smooth_accel += Time.deltaTime / 2;
+			}
+
+			smooth_angle += Time.deltaTime / 10;
+
+			Vector3 forwardRocketFallVel = Vector3.Normalize(Vector3.ProjectOnPlane(transform.forward,Vector3.up))*0.25f ;
+			Vector3 desired_forward = Vector3.Lerp (transform.forward, Vector3.Normalize(Vector3.down+forwardRocketFallVel), smooth_angle);
+			//Then we get the angle that we have to rotate in quaternion format
+			Quaternion tilt = Quaternion.FromToRotation (transform.forward, desired_forward);
+			//Now we apply it to the ship with the quaternion product property
+
+			transform.rotation = tilt * transform.rotation;
+
+			if (transform.up.y < 0) {
+				transform.RotateAround (transform.position, transform.forward, -Mathf.Sign(transform.right.y)*Time.deltaTime/0.002f);
+			} else if(Mathf.Abs(transform.right.y)>0.1f){
+				transform.RotateAround (transform.position, transform.forward, -Mathf.Sign(transform.right.y)*Time.deltaTime/0.002f);
+			}
+
+			//if transform.forward.y<0
+			//transform.RotateAround (transform.position, transform.forward, Time.deltaTime * 180);
+
+			next_speed = Mathf.Lerp (current_speed, 65, smooth_accel);
+			m_rb.velocity = transform.forward * next_speed;
+
+
+			RaycastHit rocketHit;
+
+			if (flying&&!form && Physics.Raycast (transform.position, transform.forward, out rocketHit, m_rb.velocity.magnitude/6.5f, LayerMask.GetMask ("Path"))) {
+
+				Vector3 desired_up = Vector3.Lerp (prev_up, rocketHit.normal, Time.deltaTime /0.1f);
+				/*Then we get the angle that we have to rotate in quaternion format*/
+				Quaternion rocketTilt = Quaternion.FromToRotation (transform.up, desired_up);
+				/*Now we apply it to the ship with the quaternion product property*/
+				transform.rotation = rocketTilt * transform.rotation;
+				//Slow down player as necessary
+			}
+		}
+	}
+
+	void turnManager(){
+		//Physical aspect
+
+		float h = Input.GetAxis ("Horizontal");
+
+		if (form) {
+			yaw = Mathf.Lerp (yaw, hover_turn_speed * rotation_help * h, Time.deltaTime / hover_soap);
+		} else {
+			if (flying) {
+				yaw = Mathf.Lerp (yaw, rocket_turn_speed * rotation_help * h/2, Time.deltaTime / hover_soap);
+			} else {
+				yaw = Mathf.Lerp (yaw, rocket_turn_speed * rotation_help * h, Time.deltaTime / rocket_soap);
+			}
+		}
+		turnAngle = yaw*75;
+
+		float yaw_Increase;
+
+		if (Mathf.Sign (h) == Mathf.Sign (turnAngle)) {
+			yaw_Increase = yaw * (Mathf.Abs (turnAngle / maxAngleChange * 0.5f));
+		} else {
+			yaw_Increase = 0;
+		}
+
+		rotationforce = yaw + yaw_Increase;
+
+		transform.RotateAround (transform.position, transform.up, Mathf.Sign(transform.InverseTransformDirection(m_rb.velocity).z)*(rotationforce)*Time.deltaTime/0.01f);
+
+		animRotation = Mathf.Lerp (animRotation, h, Time.deltaTime);
+		CmdAnimFloat ("rotationAnim", animRotation);
+
+		visuals.transform.rotation = transform.rotation;
+		visuals.transform.RotateAround (transform.position,transform.up,180);
+		if (form) {
+			tps.GetComponent<OtherCam> ().tilt = Mathf.Lerp (tps.GetComponent<OtherCam> ().tilt, -yaw_Increase * hover_tilt, Time.deltaTime);
+			visuals.transform.RotateAround (visuals.transform.position, visuals.transform.forward, -tps.GetComponent<OtherCam> ().tilt*1.5f);
+			float spikey = Mathf.Lerp (-0.25f, 0, Mathf.Abs(tps.GetComponent<OtherCam> ().tilt/20));
+			visuals.transform.GetChild (1).transform.position = visuals.transform.position+visuals.transform.GetChild (1).transform.up*spikey;
+		}
+		if (!form) {
+			Cockpit.transform.rotation = transform.rotation;
+			Cockpit.transform.RotateAround (transform.position,transform.up,180);
+			fps.GetComponent<FPSCam> ().tilt = Mathf.Lerp (fps.GetComponent<FPSCam> ().tilt, -yaw_Increase * rocket_tilt, Time.deltaTime);
+			visuals.transform.RotateAround (visuals.transform.position, visuals.transform.forward, -fps.GetComponent<FPSCam> ().tilt*1.5f);
+			Cockpit.transform.RotateAround (transform.position, transform.forward, fps.GetComponent<FPSCam> ().tilt*1.5f);
+		}
+		prev_up = transform.up;
+	}
+
+	private void OnCollisionStay(Collision col){
+		if (isLocalPlayer) {
+			if (Vector3.Distance (transform.position, lastPos) / Time.deltaTime < 10) {
+				current_speed = Vector3.Magnitude (Vector3.Project (transform.position - lastPos, transform.forward)) / Time.deltaTime;
+			}
+			lastPos = transform.position;
+
+			Vector3 normal = Vector3.zero;
+			Vector3 hitpos = Vector3.zero;
+
+			foreach (ContactPoint cp in col.contacts) {
+				normal += cp.normal;
+				hitpos += transform.InverseTransformPoint (cp.point);
+			}
+			if (Vector3.Dot (transform.forward, normal) < 0) {
+				Vector3 desired_up = transform.up;
+				Vector3 desired_forward = (hitpos.x < 0 ? 1 : -1) * Vector3.Cross (normal, transform.up);
+
+				if (transform.InverseTransformVector (desired_forward).x < 0 ? Input.GetAxis ("Horizontal") <= 0 : Input.GetAxis ("Horizontal") >= 0) {
+					transform.forward = Vector3.Lerp (transform.forward, desired_forward, Time.deltaTime / 0.2f);
+					Quaternion rot = Quaternion.LookRotation (transform.forward, desired_up);
+					transform.rotation = rot;
+				}
+			}
+		}
+	}
+
+	void OnCollisionEnter(Collision collision){
+		Vector3 hitpos = transform.InverseTransformPoint (collision.contacts [0].point);
+		if (Mathf.Abs (hitpos.x) > Mathf.Abs (hitpos.z)) {
+			//LeonardSound 
+			AudioSourceSound.PlayOneShot (VoiceImpact1, 0.1F);
+			//LeonardSoundEnd
+			if (hitpos.x > 0) {
+				CmdAnimInt ("hitAnim", 3);
+				GameObject spark = Instantiate (SparkFx, this.transform);
+				spark.transform.position += transform.up;
+				spark.transform.RotateAround (transform.position, transform.up, 90);
+				vibrationD = 0.6f;
+				vibrationG = 0;
+			} else {
+				CmdAnimInt ("hitAnim", 4);
+				GameObject spark = Instantiate (SparkFx, this.transform);
+				spark.transform.position += transform.up;
+				spark.transform.RotateAround (transform.position, transform.up, -90);
+				vibrationD = 0;
+				vibrationG = 0.6f;
+			}
+		} else {
+			if (hitpos.z > 0) {
+				CmdAnimInt ("hitAnim", 1);
+				vibrationD = 0.5f;
+				vibrationG = 0.5f;
+			} else {
+				CmdAnimInt ("hitAnim", 1);
+				vibrationD = 0.5f;
+				vibrationG = 0.5f;
+			}
+		}
+			StartCoroutine (Vibration (0.5f));
+	}
+
+	public float SpeedPercentage(){
+		float percentage;
+		percentage = current_speed/rocket_fwd_max_speed;
+		return percentage;
+	}
+
+	[Command] public void CmdActivateBump(GameObject c){
+		RpcActivateBump (c);
+	}
+
+	[ClientRpc]
+	void RpcActivateBump(GameObject c){
+		if (c!=null) {
+			if (current_speed < c.gameObject.GetComponentInParent<OtherController> ().current_speed) {
+				current_speed -= c.gameObject.GetComponentInParent<OtherController> ().current_speed - current_speed;
+			}
+			targetRelativePos = (transform.position-c.transform.position)*2;
+			bumpTimer = Time.time;
+			bumpDuration = (30 / current_speed);
+		}
+	}
+
+	/*void bump(){
+		if (Time.time < bumpTimer+bumpDuration) {
+			transform.position = Vector3.Lerp (transform.position, transform.position + targetRelativePos, (Time.time - bumpTimer)*(1/bumpDuration));
+			targetRelativePos -= targetRelativePos * (Time.time - bumpTimer)*(1/bumpDuration);
+		} else {
+			targetRelativePos = Vector3.zero;
+		}
+	}*/
+
+
+
+
+	void BezierScriptMovement(){
+		GamePad.SetVibration (0, 1, 1);
+		lerpAmount = (Time.time - saveTime) * (1 / timeDuration);
+		lerpAmount2 = (Time.time - saveTime2) * (1 / timeDuration2);
+		if (lerpAmount2 > 2) {
+			lerpAmount2=0;
+			startLook = false;
+			initialisation = false;
+		}
+
+		if (lerpAmount > 1) {
+			while (lerpAmount > 1) {
+
+				lerpAmount=0;
+				i++;
+				saveTime = Time.time;
+
+				if (i + 1 <= scriptingMovement.Count - 1) {
+					timeDuration = Vector3.Distance (scriptingMovement [i], scriptingMovement [i + 1]) / (SpeedBezier+(goodStart));
+					InitialDistancePos = Vector3.Distance (scriptingMovement [i], scriptingMovement [i+1]);
+				}
+			}
+			if (i + 1 > scriptingMovement.Count-1) {
+				scriptingMovement = new List<Vector3> ();
+				timeDuration = 1;
+				lerpAmount = 0;
+				saveTime = 0;
+				i = 0;
+				current_speed = endSpeedBezier;
+				if (goodStart != 0) {
+					current_speed = 35+(goodStart);
+					goodStart = 0;
+				}
+
+				goLook = false;
+				tow = false;
+				GamePad.SetVibration (0, 0, 0);
+			}
+		}
+
+		if (i + 1 <= scriptingMovement.Count - 1) {
+			if (goLook) {
+				if ( lerpAmount >= 0.5f && startLook == false) {
+					startLook = true;
+				}
+				if (startLook == true && initialisation == false && i+2 <= scriptingMovement.Count - 1) {
+					saveTime2 = Time.time;
+					timeDuration2 = Vector3.Distance ((this.transform.position + transform.TransformVector(0,0,InitialDistancePos)), scriptingMovement [i + 2]) / (SpeedBezier);
+					initialisation = true;
+				}
+				if (i + 2 <= scriptingMovement.Count - 1) {
+					transform.LookAt (Vector3.Lerp (this.transform.position + transform.TransformVector(0, 0, InitialDistancePos), scriptingMovement [i + 2], lerpAmount2));
+				}
+			} 
+			if (tow) {
+				float yEuler = transform.eulerAngles.y;
+				Vector3 Direction = (Vector3.up*upPoint+visualTowPoint.position - this.transform.position).normalized;
+				this.transform.up = Direction;
+				this.transform.eulerAngles = new Vector3 (transform.eulerAngles.z, yEuler, 0);
+			}
+
+			this.transform.position = Vector3.Lerp (scriptingMovement [i], scriptingMovement [i + 1], lerpAmount);
+		}
+	}
+
+
+	[Client]
+	void HighlightObject (){
+		foreach (GameObject g in myLB) {
+			if (g.transform.position == action [myAction].transform.position) {
+				notHere = false;
+				break;
+			} else if (action [myAction].GetComponent<specialAction> ().Tow == true && g.transform.position == action [myAction].GetComponent<specialAction> ().VisualTowPoint.position) {
+				notHere = false;
+				break;
+			} else if (myLB.Count < action.Count) {
+				notHere = true;
+			} else {
+				notHere = false;
+			}
+		}
+
+		if (notHere == true || myLB.Count == 0) {
+			/*if(action [myAction].GetComponent<Renderer> () != null){
+				if (action [myAction].GetComponent<specialAction> ().Tow == true) {
+					Renderer _renderer2 = action [myAction].GetComponent<specialAction> ().VisualTowPoint.GetComponent<Renderer> ();
+					int i = 0;
+					Material[] current = _renderer2.materials;
+					Material[] targetMaterials = new Material [current.Length + 1];
+					foreach (Material m in current) {
+						targetMaterials [i] = m;
+						i++;
+					}
+					targetMaterials [current.Length] = fresnel;
+					_renderer2.materials = targetMaterials;
+				} else {
+					Renderer _renderer2 = action [myAction].GetComponent<Renderer> ();
+					int i = 0;
+					Material[] current = _renderer2.materials;
+					Material[] targetMaterials = new Material [current.Length + 1];
+					foreach (Material m in current) {
+						targetMaterials [i] = m;
+						i++;
+					}
+					targetMaterials [current.Length] = fresnel;
+					_renderer2.materials = targetMaterials;
+				}
+			}*/
+			myLB.Add (Instantiate (LBCanvas, action [myAction].GetComponent<specialAction> ().LBPoint.transform.position, Quaternion.identity, action [myAction].GetComponent<specialAction> ().LBPoint.transform) as GameObject);
+			myLB[myLB.Count-1].GetComponent<LBText> ().Player = transform;
+		}
+	}
+
+	[Command]
+		public void CmdGiveName(GameObject g){
+			RpcSetPlayerName (NetworkServer.connections.Count.ToString(), NetworkServer.connections.Count, g);
+		}
+	[Command]
+	public void CmdDontKill(GameObject g){
+		DontDestroyOnLoad (this.gameObject);
+	}
+	[ClientRpc]
+	void RpcSetPlayerName(string name, int i, GameObject g){
+		gameObject.name = name;
+		OtherController o = g.GetComponent<OtherController> ();
+		o.myNumberPlayer = i;
+		o.materialProperty = new MaterialPropertyBlock ();
+		foreach (Renderer r in o.rendererShirt) {
+			r.GetPropertyBlock (materialProperty);
+			o.materialProperty.SetTexture ("_MainTex", o.SkinShirt [i - 1]);
+			r.SetPropertyBlock (materialProperty);
+		}
+		o.materialProperty = new MaterialPropertyBlock ();
+		foreach (Renderer r in o.rendererHaid) {
+			r.GetPropertyBlock (materialProperty);
+			o.materialProperty.SetTexture ("_MainTex", o.SkinHair [i - 1]);
+			r.SetPropertyBlock (materialProperty);
+		}
+	}
+	[Command]
+	void CmdCockpit(GameObject c,bool b){
+		RpcCockpit (c, b);
+	}
+	[ClientRpc]
+	void RpcCockpit(GameObject c,bool b){
+		c.GetComponent<OtherController>().Cockpit.SetActive (b);
+		if (b) {
+			foreach (GameObject t in Wings) {
+				t.SetActive (false);
+			}
+		} else {
+			foreach (GameObject t in Wings) {
+				t.SetActive (true);
+			}
+		}
+
+	}
+		
+	[Command]
+	public void CmdAnimBool(string name,bool b){
+		if (name == "flyingAnim") {
+			flyingAnim = b;
+		}
+		if (name == "landing") {
+			landing= b;
+		}
+		if (name == "grab") {
+			grab= b;
+		}
+		if (name == "formAnim") {
+			formAnim= b;
+		}
+	}
+	[Command]
+	public void CmdAnimFloat(string name,float f){
+		if (name == "rotationAnim") {
+			rotationAnim = f;
+		}
+		if (name == "speedAnim") {
+			speedAnim = f;
+		}
+		if (name == "accelerationAnim") {
+			accelerationAnim = f;
+		}
+	}
+	[Command]
+	public void CmdAnimInt(string name,int i){
+		if (name == "hitAnim") {
+			hitAnim = i;
+		}
+	}
+	[Command]
+	public void CmdPriority(float f){
+		priority=f;
+
+	}
+}
